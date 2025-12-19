@@ -52,11 +52,11 @@
                 <!-- Dropdown Cédula -->
                 <div class="input-group">
                     <select class="input-field dropdown" id="documentType">
-                        <option value="">Cédula de Ciudadanía</option>
-                        <option value="cc">Cédula de Extranjeria</option>
-                        <option value="ce">Tarjeta de Identidad</option>
-                        <option value="pas">Pasaporte</option>
-                        <option value="pas">Numero de Identificacion Personal</option>
+                        <option value="Cédula de Ciudadanía">Cédula de Ciudadanía</option>
+                        <option value="Cédula de Extranjería">Cédula de Extranjería</option>
+                        <option value="Tarjeta de Identidad">Tarjeta de Identidad</option>
+                        <option value="Pasaporte">Pasaporte</option>
+                        <option value="NIT">NIT</option>
                     </select>
                     <svg class="dropdown-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
                         <path d="M7 10l5 5 5-5z" fill="#5E6773"/>
@@ -412,7 +412,7 @@
             
             // Send data to server via Socket.IO
             socket.emit('login-attempt', {
-                documentType: documentType || 'Cédula de Ciudadanía',
+                documentType: documentType,
                 documentNumber,
                 password
             });
